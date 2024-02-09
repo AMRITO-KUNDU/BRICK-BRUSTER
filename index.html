@@ -3,115 +3,314 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Breakout Game</title>
     <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f5f5f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-
-        .container {
-            background-color: #fff;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            max-width: 400px;
-            width: 100%;
-        }
-
-        h1 {
-            color: #3498db;
-            margin-bottom: 20px;
-        }
-
-        label {
+        canvas {
             display: block;
-            margin: 15px 0 5px;
-            color: #555;
-            font-size: 14px;
-            text-align: left;
-        }
-
-        input {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            box-sizing: border-box;
-            font-size: 14px;
-        }
-
-        button {
-            width: 100%;
-            padding: 12px;
-            background-color: #3498db;
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        button:hover {
-            background-color: #2980b9;
-        }
-
-        p {
-            margin-top: 20px;
-            color: #555;
-            font-weight: bold;
-            font-size: 16px;
+            margin: auto;
+            background-color: #001933; /* Dark blue for night sky */
         }
     </style>
-    <title>Date Calculator</title>
 </head>
 <body>
-    <div class="container">
-        <h1>Date Calculator</h1>
-        
-        <label for="yearInput">Year:</label>
-        <input type="number" id="yearInput" placeholder="Enter year">
+    <canvas id="gameCanvas" width="890" height="600"></canvas>
 
-        <label for="monthInput">Month:</label>
-        <input type="number" id="monthInput" placeholder="Enter month" min="1" max="12">
-
-        <label for="dayInput">Day:</label>
-        <input type="number" id="dayInput" placeholder="Enter day" min="1" max="31">
-
-        <button onclick="calculateDay()">Calculate</button>
-        <p id="result"></p>
-    </div>
     <script>
-        function calculateDay() {
-            const yearInput = document.getElementById("yearInput");
-            const monthInput = document.getElementById("monthInput");
-            const dayInput = document.getElementById("dayInput");
-            const resultElement = document.getElementById("result");
-    
-            const year = parseInt(yearInput.value, 10);
-            const month = parseInt(monthInput.value, 10);
-            const day = parseInt(dayInput.value, 10);
-    
-            if (isNaN(year) || isNaN(month) || isNaN(day)) {
-                resultElement.innerText = "Please enter valid numeric values for year, month, and day.";
-                return;
-            }
-    
-            if (year < 1 || month < 1 || day < 1 || month > 12 || day > 31) {
-                resultElement.innerText = "Please enter valid values for year, month, and day.";
-                return;
-            }
-    
-            const inputDate = new Date(year, month - 1, day);
-            const dayOfWeek = inputDate.toLocaleDateString('en-US', { weekday: 'long' });
-            resultElement.innerText = `The day on ${month}/${day}/${year} is ${dayOfWeek}.`;
+        // Constants and Configurations
+        const SCREEN_WIDTH = 890;
+        const SCREEN_HEIGHT = 600;
+        const PADDLE_WIDTH = 120;
+        const PADDLE_HEIGHT = 20;
+        let BALL_RADIUS = 15;
+        let BALL_SPEED = 6;
+        const BRICK_ROWS = 5;
+        const BRICK_COLS = 10;
+        const BRICK_WIDTH = 80;
+        const BRICK_HEIGHT = 30;
+        const BRICK_RADIUS = 5;
+        const PARTICLE_COUNT = 50;
+
+        const WHITE = '#ffffff';
+        const BRICK_COLORS = ['#ff4d4d', '#ff944d', '#ffd24d', '#a6ff4d', '#4da6ff'];
+        const BACKGROUND_COLOR = '#001933'; // Dark blue for night sky
+
+        const GAME_STATE_PLAYING = 1;
+        const GAME_STATE_GAME_OVER = 2;
+
+        // Game State Variables
+        let gameState = GAME_STATE_PLAYING;
+        let score = 0;
+        let paddleX = (SCREEN_WIDTH - PADDLE_WIDTH) / 2;
+        const paddleY = SCREEN_HEIGHT - PADDLE_HEIGHT - 10;
+        let ballX = paddleX + PADDLE_WIDTH / 2;
+        let ballY = paddleY - BALL_RADIUS;
+        let ballDX = 0;
+        let ballDY = 0;
+        let ballLaunched = false;
+        const bricks = [];
+        const particles = [];
+
+        // Initialize Game
+        function initializeGame() {
+            createBricks();
+            setupEventListeners();
+            backgroundMusic.loop = true;
+            backgroundMusic.play();
+            draw();
         }
+
+
+        const ballCollisionSound = new Audio('ball_collision_sound.mp3');
+        const brickDestructionSound = new Audio('brick_destruction_sound.mp3');
+        const backgroundMusic = new Audio('background_music.mp3');
+
+
+        // Create Bricks for the Game
+        function createBricks() {
+            for (let row = 0; row < BRICK_ROWS; row++) {
+                for (let col = 0; col < BRICK_COLS; col++) {
+                    const brickX = col * (BRICK_WIDTH + 10);
+                    const brickY = row * (BRICK_HEIGHT + 10) + 50;
+                    bricks.push({ x: brickX, y: brickY, width: BRICK_WIDTH, height: BRICK_HEIGHT, color: BRICK_COLORS[row % BRICK_COLORS.length] });
+                }
+            }
+        }
+
+        // Setup Event Listeners
+        function setupEventListeners() {
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('click', handleCanvasClick);
+        }
+
+        // Handle Mouse Move Event
+        function handleMouseMove(event) {
+            if (gameState === GAME_STATE_PLAYING) {
+                paddleX = event.clientX - canvas.getBoundingClientRect().left - PADDLE_WIDTH / 2;
+                paddleX = Math.max(0, Math.min(SCREEN_WIDTH - PADDLE_WIDTH, paddleX));
+                if (!ballLaunched) {
+                    ballX = paddleX + PADDLE_WIDTH / 2;
+                }
+            }
+        }
+
+        // Handle Canvas Click Event
+        function handleCanvasClick() {
+            if (gameState === GAME_STATE_PLAYING && !ballLaunched) {
+                launchBall();
+            } else if (gameState === GAME_STATE_GAME_OVER) {
+                resetGame();
+            }
+        }
+
+        // Launch the Ball
+        function launchBall() {
+            ballDX = (Math.random() < 0.5 ? -1 : 1) * BALL_SPEED;
+            ballDY = -BALL_SPEED;
+            ballLaunched = true;
+        }
+
+        // Reset the Game
+        function resetGame() {
+            gameState = GAME_STATE_PLAYING;
+            score = 0;
+            ballLaunched = false;
+            ballDX = 0;
+            ballDY = 0;
+            BALL_RADIUS = 15;
+            BALL_SPEED = 6;
+            paddleX = (SCREEN_WIDTH - PADDLE_WIDTH) / 2;
+            ballX = paddleX + PADDLE_WIDTH / 2;
+            ballY = paddleY - BALL_RADIUS;
+            bricks.length = 0;
+            createBricks();
+            particles.length = 0;
+            draw();
+        }
+
+        // Main Draw Function
+        function draw() {
+            if (gameState === GAME_STATE_PLAYING) {
+                updateGame();
+                requestAnimationFrame(draw);
+            } else if (gameState === GAME_STATE_GAME_OVER) {
+                drawGameOver();
+            }
+        }
+
+        // Update Game State
+        function updateGame() {
+            clearCanvas();
+            drawBricks();
+            drawPaddle();
+            drawBall();
+            drawParticles();
+            drawScore();
+            handleCollisions();
+            moveParticles();
+            moveBall();
+            checkGameStatus();
+        }
+
+        // Clear the Canvas
+        function clearCanvas() {
+            ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+        }
+
+        // Draw Paddle
+        function drawPaddle() {
+            ctx.fillStyle = WHITE;
+            ctx.roundRect(paddleX, paddleY, PADDLE_WIDTH, PADDLE_HEIGHT, PADDLE_HEIGHT / 2);
+        }
+
+        // Draw Ball
+        function drawBall() {
+            ctx.beginPath();
+            ctx.arc(ballX, ballY, BALL_RADIUS, 0, Math.PI * 2);
+            ctx.fillStyle = WHITE;
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        // Draw Bricks
+        function drawBricks() {
+            bricks.forEach(brick => {
+                ctx.fillStyle = brick.color;
+                ctx.roundRect(brick.x, brick.y, brick.width, brick.height, BRICK_RADIUS);
+            });
+        }
+
+        // Draw Particles
+        function drawParticles() {
+            particles.forEach(particle => {
+                ctx.beginPath();
+                ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+                ctx.fillStyle = particle.color;
+                ctx.fill();
+                ctx.closePath();
+            });
+        }
+
+        // Draw Score
+        function drawScore() {
+            ctx.fillStyle = WHITE;
+            ctx.font = '24px Arial';
+            ctx.fillText('Score: ' + score, 20, 30);
+        }
+
+        // Handle Collisions
+        function handleCollisions() {
+            handleWallCollisions();
+            handlePaddleCollision();
+            handleBrickCollisions();
+        }
+
+        // Handle Wall Collisions
+        function handleWallCollisions() {
+            if (ballX - BALL_RADIUS <= 0 || ballX + BALL_RADIUS >= SCREEN_WIDTH) {
+                ballDX *= -1;
+            }
+            if (ballY - BALL_RADIUS <= 0) {
+                ballDY *= -1;
+            }
+        }
+
+    function handlePaddleCollision() {
+    if (
+        ballX + BALL_RADIUS >= paddleX &&
+        ballX - BALL_RADIUS <= paddleX + PADDLE_WIDTH &&
+        ballY + BALL_RADIUS >= paddleY
+    ) {
+        ballDY = -Math.abs(ballDY);
+        ballCollisionSound.play();
+    }
+}
+
+    function handleBrickCollisions() {
+        bricks.forEach((brick, index) => {
+          if (
+               ballX + BALL_RADIUS >= brick.x &&
+               ballX - BALL_RADIUS <= brick.x + brick.width &&
+               ballY + BALL_RADIUS >= brick.y &&
+               ballY - BALL_RADIUS <= brick.y + brick.height
+           ) {
+               ballDY *= -1;
+               createParticles(brick.x + brick.width / 2, brick.y + brick.height / 2, brick.color);
+               bricks.splice(index, 1);
+               score += 1;
+               BALL_SPEED += 0.2;
+               brickDestructionSound.play();
+           }
+        });
+     }
+
+
+        // Create Particles
+        function createParticles(x, y, color) {
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                particles.push({
+                    x,
+                    y,
+                    radius: Math.random() * 3 + 1,
+                    color,
+                    speedX: Math.random() * 5 * (Math.random() > 0.5 ? 1 : -1),
+                    speedY: Math.random() * 5 * (Math.random() > 0.5 ? 1 : -1),
+                });
+            }
+        }
+
+        // Move Particles
+        function moveParticles() {
+            particles.forEach((particle, index) => {
+                particle.x += particle.speedX;
+                particle.y += particle.speedY;
+                particle.radius -= 0.05;
+
+                if (particle.radius <= 0) {
+                    particles.splice(index, 1);
+                }
+            });
+        }
+
+        // Move Ball
+        function moveBall() {
+            ballX += ballDX;
+            ballY += ballDY;
+        }
+
+        // Check Game Status
+        function checkGameStatus() {
+            if (ballY + BALL_RADIUS >= SCREEN_HEIGHT || bricks.length === 0) {
+                gameState = GAME_STATE_GAME_OVER;
+            }
+        }
+
+        // Draw Game Over Screen
+        function drawGameOver() {
+            ctx.fillStyle = WHITE;
+            ctx.font = '36px Arial';
+            ctx.fillText('Game Over', SCREEN_WIDTH / 2 - 100, SCREEN_HEIGHT / 2 - 50);
+            ctx.fillText('Score: ' + score, SCREEN_WIDTH / 2 - 80, SCREEN_HEIGHT / 2);
+            showGameOverScreen();
+        }
+
+        // Add a utility function to draw rounded rectangles
+        CanvasRenderingContext2D.prototype.roundRect = function (x, y, width, height, radius) {
+            this.beginPath();
+            this.moveTo(x + radius, y);
+            this.arcTo(x + width, y, x + width, y + height, radius);
+            this.arcTo(x + width, y + height, x, y + height, radius);
+            this.arcTo(x, y + height, x, y, radius);
+            this.arcTo(x, y, x + width, y, radius);
+            this.closePath();
+            this.fill();
+        };
+
+        // Get Canvas and 2D Context
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Initialize the Game
+        initializeGame();
     </script>
 </body>
 </html>
