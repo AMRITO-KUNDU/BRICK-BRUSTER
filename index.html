@@ -80,6 +80,9 @@
         function setupEventListeners() {
             canvas.addEventListener('mousemove', handleMouseMove);
             canvas.addEventListener('click', handleCanvasClick);
+            canvas.addEventListener('touchmove', handleTouchMove);
+            canvas.addEventListener('touchstart', handleTouchStart);
+            canvas.addEventListener('touchend', handleTouchEnd);
         }
 
         // Handle Mouse Move Event
@@ -101,6 +104,36 @@
                 resetGame();
             }
         }
+
+        // Handle Touch Move Event
+        function handleTouchMove(event) {
+            event.preventDefault(); // Prevent default touch behavior
+            if (gameState === GAME_STATE_PLAYING) {
+                const touch = event.touches[0]; // Get the first touch
+                paddleX = touch.clientX - canvas.getBoundingClientRect().left - PADDLE_WIDTH / 2;
+                paddleX = Math.max(0, Math.min(SCREEN_WIDTH - PADDLE_WIDTH, paddleX));
+                if (!ballLaunched) {
+                    ballX = paddleX + PADDLE_WIDTH / 2;
+                }
+            }
+        }
+
+        // Handle Touch Start Event
+        function handleTouchStart(event) {
+            event.preventDefault(); // Prevent default touch behavior
+            if (gameState === GAME_STATE_PLAYING && !ballLaunched) {
+                launchBall();
+            }
+        }
+
+        // Handle Touch End Event
+        function handleTouchEnd(event) {
+           event.preventDefault(); // Prevent default touch behavior
+           if (gameState === GAME_STATE_GAME_OVER) {
+              resetGame();
+            }
+        }
+
 
         // Launch the Ball
         function launchBall() {
